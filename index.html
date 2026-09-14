@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Obligaciones DP</title>
+
+<!-- Instalación como app (Android / iOS) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2E5233">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Obligaciones">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+
+<!-- Service Worker: habilita el funcionamiento offline garantizado -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./ServiceWorker.js').catch(err => {
+        console.error('No se pudo registrar el Service Worker:', err);
+      });
+    });
+  }
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F2F4EC;
+    --surface:#FFFFFF;
+    --ink:#1E2A1F;
+    --ink-soft:#5B6B5C;
+    --accent:#2E5233;
+    --accent-dark:#203B26;
+    --accent-soft:#DEE9DE;
+    --mustard:#D9A441;
+    --red:#C1443C;
+    --red-soft:#F6E3E1;
+    --line:#DCE1D5;
+    --radius:16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    padding-bottom:calc(24px + env(safe-area-inset-bottom));
+  }
+  .app{
+    max-width:480px;
+    margin:0 auto;
+    padding:16px 16px 0;
+  }
+  header.top{
+    padding:calc(14px + env(safe-area-inset-top)) 4px 6px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+  }
+  header.top h1{
+    font-weight:800;
+    font-size:22px;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  header.top .biz-name{
+    font-size:12px;
+    color:var(--ink-soft);
+    font-weight:600;
+  }
+  .header-btn{
+    flex:0 0 auto;
+    width:38px;
+    height:38px;
+    border-radius:50%;
+    border:1.5px solid var(--line);
+    background:var(--surface);
+    color:var(--ink);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  .header-btn:active{ background:var(--accent-soft); }
+
+  nav.tabs{
+    display:flex;
+    background:var(--surface);
+    border-radius:999px;
+    padding:4px;
+    margin:8px 0 18px;
+    box-shadow:0 1px 2px rgba(30,42,31,0.06);
+    gap:2px;
+  }
+  nav.tabs button{
+    flex:1;
+    border:none;
+    background:transparent;
+    padding:10px 2px;
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    border-radius:999px;
+    cursor:pointer;
+    transition:background .15s ease, color .15s ease;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:1px;
+    line-height:1.1;
+  }
+  nav.tabs button .tab-badge{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    font-weight:600;
+    opacity:.75;
+  }
+  nav.tabs button.active{
+    background:var(--accent);
+    color:#fff;
+  }
+
+  .panel{display:none;}
+  .panel.active{display:block; animation:fade .18s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:translateY(0)}}
+
+  /* ---- Progress ---- */
+  .progress-card{
+    background:var(--surface);
+    border-radius:var(--radius);
+    padding:16px 18px;
+    margin-bottom:14px;
+    box-shadow:0 1px 2px rgba(30,42,31,0.06);
+  }
+  .progress-top{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:10px;
+  }
+  .progress-top .p-label{
+    font-weight:700;
+    font-size:14.5px;
+  }
+  .progress-top .p-count{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+  .progress-bar{
+    height:8px;
+    border-radius:999px;
+    background:var(--accent-soft);
+    overflow:hidden;
+  }
+  .progress-bar-fill{
+    height:100%;
+    background:var(--accent);
+    border-radius:999px;
+    transition:width .2s ease;
+  }
+  .progress-card.all-done .progress-top .p-count{ color:var(--accent); font-weight:700; }
+
+  /* ---- Obligation rows ---- */
+  .ob-list{ margin-bottom:14px; }
+  .ob-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background:var(--surface);
+    border-radius:14px;
+    padding:13px 12px;
+    margin-bottom:8px;
+    box-shadow:0 1px 2px rgba(30,42,31,0.06);
+    transition:opacity .15s ease;
+  }
+  .ob-row.overdue{
+    background:var(--red-soft);
+  }
+  .ob-check{
+    flex:0 0 auto;
+    width:26px;
+    height:26px;
+    border-radius:50%;
+    border:2px solid var(--line);
+    background:transparent;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    padding:0;
+  }
+  .ob-row.done .ob-check{
+    background:var(--accent);
+    border-color:var(--accent);
+  }
+  .ob-row.overdue:not(.done) .ob-check{
+    border-color:var(--red);
+  }
+  .ob-check svg{ display:block; }
+  .ob-body{ flex:1; min-width:0; }
+  .ob-text{
+    font-weight:600;
+    font-size:14.5px;
+    word-break:break-word;
+  }
+  .ob-row.done .ob-text{
+    color:var(--ink-soft);
+    text-decoration:line-through;
+    text-decoration-color:var(--ink-soft);
+  }
+  .ob-date{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-top:2px;
+  }
+  .ob-row.overdue:not(.done) .ob-date{
+    color:var(--red);
+    font-weight:700;
+  }
+  .ob-del{
+    flex:0 0 auto;
+    width:28px;
+    height:28px;
+    border:none;
+    background:transparent;
+    color:var(--ink-soft);
+    font-size:15px;
+    cursor:pointer;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .ob-del:active{ background:var(--bg); }
+
+  .ob-group-header{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.07em;
+    font-weight:700;
+    color:var(--ink-soft);
+    margin:16px 4px 6px;
+  }
+  .ob-group-header:first-child{ margin-top:2px; }
+
+  .ob-empty{
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13px;
+    padding:22px 10px;
+    background:var(--surface);
+    border-radius:12px;
+    border:1.5px dashed var(--line);
+    margin-bottom:14px;
+  }
+
+  /* ---- Add row ---- */
+  .add-card{
+    background:var(--surface);
+    border-radius:var(--radius);
+    padding:14px;
+    box-shadow:0 1px 2px rgba(30,42,31,0.06);
+    margin-bottom:20px;
+  }
+  .add-row{
+    display:flex;
+    gap:8px;
+  }
+  .add-row.stacked{
+    flex-direction:column;
+  }
+  .add-input{
+    flex:1;
+    border:1.5px solid var(--line);
+    background:var(--bg);
+    border-radius:12px;
+    padding:11px 14px;
+    font-family:'Inter',sans-serif;
+    font-weight:500;
+    font-size:14px;
+    color:var(--ink);
+    min-width:0;
+  }
+  .add-input:focus{ outline:none; border-color:var(--accent); }
+  .add-date{
+    border:1.5px solid var(--line);
+    background:var(--bg);
+    border-radius:12px;
+    padding:11px 12px;
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    color:var(--ink);
+  }
+  .add-date:focus{ outline:none; border-color:var(--accent); }
+  .add-btn{
+    flex:0 0 auto;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:12px;
+    padding:0 18px;
+    font-weight:700;
+    font-size:20px;
+    cursor:pointer;
+  }
+  .add-btn:active{ background:var(--accent-dark); }
+  .add-hint{
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-top:8px;
+  }
+
+  /* ---- Confirm modal ---- */
+  .modal-overlay{
+    position:fixed; inset:0;
+    background:rgba(30,42,31,0.45);
+    display:none;
+    align-items:flex-end;
+    justify-content:center;
+    z-index:50;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal-card{
+    background:var(--surface);
+    width:100%;
+    max-width:480px;
+    border-radius:20px 20px 0 0;
+    padding:22px 20px calc(20px + env(safe-area-inset-bottom));
+  }
+  .modal-card p{
+    font-size:14.5px;
+    font-weight:600;
+    margin:0 0 16px;
+  }
+  .modal-actions{ display:flex; gap:10px; }
+  .modal-actions button{
+    flex:1;
+    border:none;
+    border-radius:12px;
+    padding:13px 0;
+    font-weight:700;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .modal-cancel{ background:var(--bg); color:var(--ink); }
+  .modal-confirm{ background:var(--red); color:#fff; }
+
+  /* ---- Toast ---- */
+  .toast{
+    position:fixed;
+    left:50%;
+    bottom:calc(22px + env(safe-area-inset-bottom));
+    transform:translateX(-50%) translateY(20px);
+    background:var(--accent-dark);
+    color:#fff;
+    padding:11px 18px;
+    border-radius:999px;
+    font-size:13px;
+    font-weight:600;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease;
+    z-index:60;
+    white-space:nowrap;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>Obligaciones</h1>
+      <div class="biz-name">DP</div>
+    </div>
+    <button class="header-btn" id="btnForzarCarga" title="Cargar obligaciones precargadas que falten">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+    </button>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="semanal">Semanales<span class="tab-badge" id="badge-semanal"></span></button>
+    <button class="tab-btn" data-tab="mensual">Mensuales<span class="tab-badge" id="badge-mensual"></span></button>
+    <button class="tab-btn" data-tab="puntual">Puntuales<span class="tab-badge" id="badge-puntual"></span></button>
+  </nav>
+
+  <div class="panel active" data-panel="semanal">
+    <div class="progress-card" id="progress-semanal"></div>
+    <div class="ob-list" id="list-semanal"></div>
+    <div class="add-card">
+      <div class="add-row">
+        <input type="text" class="add-input" id="input-semanal" placeholder="Nueva obligación semanal...">
+        <button class="add-btn" data-tipo="semanal">+</button>
+      </div>
+      <div class="add-hint">Se desmarca sola cada semana (lunes).</div>
+    </div>
+  </div>
+
+  <div class="panel" data-panel="mensual">
+    <div class="progress-card" id="progress-mensual"></div>
+    <div class="ob-list" id="list-mensual"></div>
+    <div class="add-card">
+      <div class="add-row stacked">
+        <input type="text" class="add-input" id="input-mensual" placeholder="Nueva obligación mensual...">
+        <div style="display:flex; gap:8px;">
+          <select class="add-date" id="grupo-mensual" style="flex:1;"></select>
+          <button class="add-btn" data-tipo="mensual">+</button>
+        </div>
+      </div>
+      <div class="add-hint">Se desmarca sola cada mes.</div>
+    </div>
+  </div>
+
+  <div class="panel" data-panel="puntual">
+    <div class="progress-card" id="progress-puntual"></div>
+    <div class="ob-list" id="list-puntual"></div>
+    <div class="add-card">
+      <div class="add-row stacked">
+        <input type="text" class="add-input" id="input-puntual" placeholder="Nueva obligación puntual...">
+        <div style="display:flex; gap:8px;">
+          <input type="date" class="add-date" id="date-puntual" style="flex:1;">
+          <button class="add-btn" data-tipo="puntual">+</button>
+        </div>
+      </div>
+      <div class="add-hint">Tarea única, con fecha límite opcional. No se repite.</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="confirmOverlay">
+  <div class="modal-card">
+    <p id="confirmText">¿Eliminar esta obligación?</p>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="confirmCancel">Cancelar</button>
+      <button class="modal-confirm" id="confirmOk">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const STORAGE_KEY = 'obligaciones_v1';
+  const TIPOS = ['semanal','mensual','puntual'];
+
+  let obligaciones = [];
+  try{
+    obligaciones = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  }catch(e){ obligaciones = []; }
+
+  function saveObligaciones(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(obligaciones));
+  }
+
+  function uid(){
+    return Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+  }
+
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  function todayKey(d){
+    d = d || new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+
+  function weekKey(d){
+    d = d || new Date();
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = (date.getUTCDay() + 6) % 7; // lunes = 0
+    date.setUTCDate(date.getUTCDate() - dayNum + 3);
+    const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+    const week = 1 + Math.round(((date - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+    return `${date.getUTCFullYear()}-W${pad(week)}`;
+  }
+
+  function monthKey(d){
+    d = d || new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+  }
+
+  function currentKeyFor(tipo){
+    if(tipo === 'diaria') return todayKey();
+    if(tipo === 'semanal') return weekKey();
+    if(tipo === 'mensual') return monthKey();
+    return null;
+  }
+
+  // Desmarca automáticamente las tareas de un período que ya pasó
+  function refrescarPeriodos(){
+    let changed = false;
+    obligaciones.forEach(o=>{
+      if(o.tipo === 'puntual') return;
+      const key = currentKeyFor(o.tipo);
+      if(o.periodo !== key){
+        o.periodo = key;
+        o.done = false;
+        changed = true;
+      }
+    });
+    if(changed) saveObligaciones();
+  }
+
+  // ---------- Precarga inicial ----------
+  // Las mensuales van agrupadas por propiedad/entidad (así se pagan en la práctica).
+  // GROUP_ORDER define el orden fijo en que aparecen los encabezados de grupo.
+  const MENSUAL_GRUPOS = {
+    'Casa Sarmiento': [
+	  'Impuesto Municipal de Casa Sarmiento.',
+      'Luz de Casa Sarmiento.',
+      'Gas de Casa Sarmiento.',
+	  'Celular de Nico.',
+      'Internet Starlink de Casa Sarmiento.',
+	  'Monotributo Nico.',
+	  'Seguro San Cristobal Cuatri Nico.',
+	  'Avalian Salud Nico.'
+    ],
+    'Casa Granja y depósito': [
+      'Impuesto Municipal de la Casa Granja.',
+	  'Luz de Casa Granja.',
+      'Luz de Depósito Granja.',
+	  'Celular de Ale y Empleados.',
+	  'Internet Starlink de Casa Granja.',
+	  'Ingresos Brutos de Ale.',
+      'Impuesto Fiscalización ER.',
+      'Control de Plagas ER.',
+	  'Viáticos Veterinario ER.',
+	  'Tasa Higiene Hasenkamp.',
+	  'Honorarios Contadora.',
+	  'Colven Satelital Camiones.',
+      'Sentir Seguros.',
+	  'Seguros Sancor.'
+    ],
+    'Depto. Victoria': [
+	  'Impuesto Municipal de Depto. Victoria.',
+      'Luz de Dpto. Victoria.',
+      'Gas de Dpto. Victoria.',
+	  'Expensas Dpto. Victoria.',
+	  'Celular de Juli.',
+	  'Celular de Luca.',
+      'Internet Dpto. Victoria.',
+	  'Psicólogo/a Juli.',
+	  'Psicólogo/a Luca.'
+    ],
+	'Depto. Curia Arias': [
+      'Impuesto Municipal de Depto. Curia Arias.',
+	  'Luz de Dpto. Curia Arias.',
+      'Gas de Dpto. Curia Arias.',	
+      'Expensas de Dpto. Curia Arias.'
+    ],
+	'Empleados': [
+      'Monotributo Gustavo',
+      'Aportes Empleados Vep.',
+      'Aportes Empleados Transferencias.',
+      'Aportes Empleados Cupón.'
+    ],
+    'Impuestos / Contable': [
+      'Hacer facturación de Nico Monotributo.',
+      'Pasar Movimientos Banco del Mes a Contador/a .',
+      'Llevar facturas de Compras a Contador/a.'
+    ],
+    'Varios': [     
+      'Pagar Dominio DonPicconi en DonWeb'
+    ]
+  };
+  const GROUP_ORDER = Object.keys(MENSUAL_GRUPOS);
+
+  const DEFAULTS = {
+    semanal: [
+      'Pagar a Geo.',
+      'Pagar a Noelia.',
+      'Pagar a Aldana.',
+	  'Pagar a Santino.'
+    ]
+  };
+
+  function seedDefaults(){
+    const SEED_KEY = 'obligaciones_seed_v1';
+    if(localStorage.getItem(SEED_KEY)) return; // ya se sembró antes, no repetir
+    localStorage.setItem(SEED_KEY, '1');
+    if(obligaciones.length > 0) return; // ya había datos cargados, no pisar
+
+    let base = Date.now();
+    Object.keys(DEFAULTS).forEach(tipo=>{
+      DEFAULTS[tipo].forEach(texto=>{
+        base += 1;
+        obligaciones.push({
+          id: uid(),
+          tipo,
+          texto,
+          done: false,
+          createdAt: base,
+          periodo: currentKeyFor(tipo)
+        });
+      });
+    });
+    GROUP_ORDER.forEach(grupo=>{
+      MENSUAL_GRUPOS[grupo].forEach(texto=>{
+        base += 1;
+        obligaciones.push({
+          id: uid(),
+          tipo: 'mensual',
+          grupo,
+          texto,
+          done: false,
+          createdAt: base,
+          periodo: currentKeyFor('mensual')
+        });
+      });
+    });
+    saveObligaciones();
+  }
+
+  // Carga el <select> de grupos del formulario de mensuales
+  function initGrupoSelect(){
+    const sel = document.getElementById('grupo-mensual');
+    sel.innerHTML = GROUP_ORDER.map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
+  }
+
+  // Agrega las obligaciones precargadas que todavía no existan (por tipo+texto), sin duplicar.
+  function existeItem(tipo, texto){
+    return obligaciones.some(o=>o.tipo===tipo && o.texto===texto);
+  }
+
+  function forzarCarga(){
+    let base = Date.now();
+    let agregadas = 0;
+    Object.keys(DEFAULTS).forEach(tipo=>{
+      DEFAULTS[tipo].forEach(texto=>{
+        if(existeItem(tipo, texto)) return;
+        base += 1;
+        obligaciones.push({
+          id: uid(),
+          tipo,
+          texto,
+          done: false,
+          createdAt: base,
+          periodo: currentKeyFor(tipo)
+        });
+        agregadas++;
+      });
+    });
+    GROUP_ORDER.forEach(grupo=>{
+      MENSUAL_GRUPOS[grupo].forEach(texto=>{
+        if(existeItem('mensual', texto)) return;
+        base += 1;
+        obligaciones.push({
+          id: uid(),
+          tipo: 'mensual',
+          grupo,
+          texto,
+          done: false,
+          createdAt: base,
+          periodo: currentKeyFor('mensual')
+        });
+        agregadas++;
+      });
+    });
+    if(agregadas > 0){
+      saveObligaciones();
+      renderTodo();
+      showToast(`Se cargaron ${agregadas} obligacion${agregadas===1?'':'es'} que faltaban`);
+    }else{
+      showToast('Ya tenías todas las precargadas cargadas');
+    }
+  }
+
+  document.getElementById('btnForzarCarga').addEventListener('click', ()=>{
+    showConfirm('¿Cargar las obligaciones precargadas que falten? Las que ya tenés no se duplican.', forzarCarga);
+  });
+
+  // ---------- Tabs ----------
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const panels = document.querySelectorAll('.panel');
+  tabBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      tabBtns.forEach(b=>b.classList.remove('active'));
+      panels.forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelector(`.panel[data-panel="${btn.dataset.tab}"]`).classList.add('active');
+    });
+  });
+
+  // ---------- Helpers de fecha para mostrar ----------
+  function parseLocalDate(str){
+    // str = "YYYY-MM-DD" -> Date local (evita corrimiento por UTC)
+    const [y,m,d] = str.split('-').map(Number);
+    return new Date(y, m-1, d);
+  }
+
+  function formatFecha(str){
+    const d = parseLocalDate(str);
+    return d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  }
+
+  function esVencida(o){
+    if(o.tipo !== 'puntual' || !o.fecha || o.done) return false;
+    const hoy = parseLocalDate(todayKey());
+    const lim = parseLocalDate(o.fecha);
+    return lim < hoy;
+  }
+
+  // ---------- Render ----------
+  const checkSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
+
+  function renderTodo(){
+    refrescarPeriodos();
+    TIPOS.forEach(renderTipo);
+  }
+
+  function renderTipo(tipo){
+    const items = obligaciones
+      .filter(o=>o.tipo===tipo)
+      .sort((a,b)=>{
+        if(tipo==='puntual'){
+          if(!!a.done !== !!b.done) return a.done ? 1 : -1;
+          if(a.fecha && b.fecha) return a.fecha.localeCompare(b.fecha);
+          if(a.fecha) return -1;
+          if(b.fecha) return 1;
+          return a.createdAt - b.createdAt;
+        }
+        if(tipo==='mensual'){
+          const ga = GROUP_ORDER.indexOf(a.grupo);
+          const gb = GROUP_ORDER.indexOf(b.grupo);
+          const gaIdx = ga===-1 ? GROUP_ORDER.length : ga;
+          const gbIdx = gb===-1 ? GROUP_ORDER.length : gb;
+          if(gaIdx!==gbIdx) return gaIdx-gbIdx;
+          if(!!a.done !== !!b.done) return a.done ? 1 : -1;
+          return a.createdAt - b.createdAt;
+        }
+        if(!!a.done !== !!b.done) return a.done ? 1 : -1;
+        return a.createdAt - b.createdAt;
+      });
+
+    // Progreso
+    const total = items.length;
+    const done = items.filter(o=>o.done).length;
+    const pct = total ? Math.round((done/total)*100) : 0;
+    const progCard = document.getElementById(`progress-${tipo}`);
+    const labelMap = { semanal:'Esta semana', mensual:'Este mes', puntual:'Pendientes' };
+    if(total === 0){
+      progCard.innerHTML = `<div class="progress-top"><span class="p-label">${labelMap[tipo]}</span><span class="p-count">Sin obligaciones cargadas</span></div>`;
+      progCard.classList.remove('all-done');
+    }else{
+      progCard.innerHTML = `
+        <div class="progress-top">
+          <span class="p-label">${labelMap[tipo]}</span>
+          <span class="p-count">${done}/${total} completadas</span>
+        </div>
+        <div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%;"></div></div>
+      `;
+      progCard.classList.toggle('all-done', done===total);
+    }
+
+    // Badge de pendientes en la solapa
+    const pendientes = total - done;
+    const badge = document.getElementById(`badge-${tipo}`);
+    badge.textContent = pendientes > 0 ? pendientes : '';
+
+    // Lista
+    const list = document.getElementById(`list-${tipo}`);
+    if(items.length === 0){
+      const nombrePlural = { semanal:'semanales', mensual:'mensuales', puntual:'puntuales' }[tipo];
+      list.innerHTML = `<div class="ob-empty">Todavía no cargaste obligaciones ${nombrePlural}.</div>`;
+      return;
+    }
+    let lastGrupo = undefined;
+    list.innerHTML = items.map(o=>{
+      const vencida = esVencida(o);
+      const fechaHtml = (o.tipo==='puntual' && o.fecha) ? `<div class="ob-date">${vencida ? 'Venció el ' : 'Vence el '}${formatFecha(o.fecha)}</div>` : '';
+      let headerHtml = '';
+      if(tipo === 'mensual' && o.grupo !== lastGrupo){
+        lastGrupo = o.grupo;
+        headerHtml = `<div class="ob-group-header">${escapeHtml(o.grupo || 'Varios')}</div>`;
+      }
+      return `
+        ${headerHtml}
+        <div class="ob-row ${o.done?'done':''} ${vencida?'overdue':''}">
+          <button class="ob-check" data-id="${o.id}">${o.done ? checkSvg : ''}</button>
+          <div class="ob-body">
+            <div class="ob-text">${escapeHtml(o.texto)}</div>
+            ${fechaHtml}
+          </div>
+          <button class="ob-del" data-id="${o.id}">✕</button>
+        </div>
+      `;
+    }).join('');
+
+    list.querySelectorAll('.ob-check').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const o = obligaciones.find(x=>x.id===btn.dataset.id);
+        if(!o) return;
+        o.done = !o.done;
+        saveObligaciones();
+        renderTodo();
+      });
+    });
+    list.querySelectorAll('.ob-del').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        showConfirm('¿Eliminar esta obligación?', ()=>{
+          obligaciones = obligaciones.filter(x=>x.id!==btn.dataset.id);
+          saveObligaciones();
+          renderTodo();
+          showToast('Obligación eliminada');
+        });
+      });
+    });
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  // ---------- Agregar obligación ----------
+  document.querySelectorAll('.add-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> agregar(btn.dataset.tipo));
+  });
+  TIPOS.forEach(tipo=>{
+    const input = document.getElementById(`input-${tipo}`);
+    if(input){
+      input.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter') agregar(tipo);
+      });
+    }
+  });
+
+  function agregar(tipo){
+    const input = document.getElementById(`input-${tipo}`);
+    const texto = input.value.trim();
+    if(!texto){
+      input.focus();
+      return;
+    }
+    const nueva = {
+      id: uid(),
+      tipo,
+      texto,
+      done: false,
+      createdAt: Date.now(),
+      periodo: tipo === 'puntual' ? null : currentKeyFor(tipo)
+    };
+    if(tipo === 'puntual'){
+      const dateInput = document.getElementById('date-puntual');
+      nueva.fecha = dateInput.value || null;
+      dateInput.value = '';
+    }
+    if(tipo === 'mensual'){
+      const grupoSel = document.getElementById('grupo-mensual');
+      nueva.grupo = grupoSel.value || 'Varios';
+    }
+    obligaciones.push(nueva);
+    saveObligaciones();
+    input.value = '';
+    renderTodo();
+    showToast('Obligación agregada');
+  }
+
+  // ---------- Confirm modal ----------
+  const confirmOverlay = document.getElementById('confirmOverlay');
+  const confirmText = document.getElementById('confirmText');
+  let confirmCallback = null;
+
+  function showConfirm(msg, cb){
+    confirmText.textContent = msg;
+    confirmCallback = cb;
+    confirmOverlay.classList.add('show');
+  }
+  document.getElementById('confirmCancel').addEventListener('click', ()=>{
+    confirmOverlay.classList.remove('show');
+    confirmCallback = null;
+  });
+  document.getElementById('confirmOk').addEventListener('click', ()=>{
+    confirmOverlay.classList.remove('show');
+    if(confirmCallback) confirmCallback();
+    confirmCallback = null;
+  });
+  confirmOverlay.addEventListener('click', (e)=>{
+    if(e.target === confirmOverlay){
+      confirmOverlay.classList.remove('show');
+      confirmCallback = null;
+    }
+  });
+
+  // ---------- Toast ----------
+  let toastTimer;
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> t.classList.remove('show'), 1600);
+  }
+
+  // Re-chequea los períodos si la app vuelve a primer plano (por si cambió el día)
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState === 'visible') renderTodo();
+  });
+
+  // ---------- Init ----------
+  initGrupoSelect();
+  seedDefaults();
+  renderTodo();
+})();
+</script>
+</body>
+</html>
